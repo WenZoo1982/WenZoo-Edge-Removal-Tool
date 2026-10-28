@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 WenZoo-Edge-Removal-Tool.ps1
-Version: 0.3.1 (UTF-8 BOM removed for IEX bootstrap)
+Version: 0.3.2 (fix menu Exit loop)
 Removes the traditional desktop Microsoft Edge browser, while preserving the
 Microsoft Edge WebView2 Runtime installation directory and product registration.
 A pre-removal backup is mandatory before any changes. This script is best-effort:
@@ -591,7 +591,8 @@ function Remove-Backups {
     Read-Host 'Press Enter to return to the menu' | Out-Null
 }
 
-while ($true) {
+$exitRequested = $false
+while (-not $exitRequested) {
     Clear-Host
     Write-Host '========================================' -ForegroundColor Cyan
     Write-Host ' WenZoo Edge Removal Tool' -ForegroundColor Cyan
@@ -618,7 +619,7 @@ while ($true) {
         }
         '2' { Restore-PreRemovalState }
         '3' { Remove-Backups }
-        '4' { Write-Log 'Exited by user.'; break }
+        '4' { Write-Log 'Exited by user.'; $exitRequested = $true }
         default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; Start-Sleep -Seconds 1 }
     }
 }
