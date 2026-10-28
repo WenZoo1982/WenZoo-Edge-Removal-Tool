@@ -1,6 +1,7 @@
 ﻿#requires -Version 5.1
 <#
 WenZoo-Edge-Removal-Tool.ps1
+Version: 0.3.0 (IEX bootstrap compatibility revision)
 Removes the traditional desktop Microsoft Edge browser, while preserving the
 Microsoft Edge WebView2 Runtime installation directory and product registration.
 A pre-removal backup is mandatory before any changes. This script is best-effort:
@@ -31,9 +32,26 @@ function Test-IsAdmin {
 
 if (-not (Test-IsAdmin)) {
     Write-Host 'Administrator permission is required. Requesting elevation...' -ForegroundColor Yellow
-    $launchArgs = '-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $PSCommandPath
-    Start-Process -FilePath 'powershell.exe' -ArgumentList $launchArgs -Verb RunAs
-    exit
+
+    # When launched from a .ps1 file, elevate that exact local file.
+    # When launched through: irm https://removal.cc.cd | iex
+    # $PSCommandPath is empty, so the elevated process fetches the HTTPS entry point again.
+    if (-not [string]::IsNullOrWhiteSpace($PSCommandPath) -and (Test-Path -LiteralPath $PSCommandPath -PathType Leaf)) {
+        $launchArgs = '-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $PSCommandPath
+    } else {
+        $bootstrapCommand = "Invoke-RestMethod -Uri 'https://removal.cc.cd' -ErrorAction Stop | Invoke-Expression"
+        $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($bootstrapCommand))
+        $launchArgs = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
+    }
+
+    try {
+        Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList $launchArgs -Verb RunAs -ErrorAction Stop
+        return
+    } catch {
+        Write-Host ("Could not request administrator permission: {0}" -f $_.Exception.Message) -ForegroundColor Red
+        Write-Host 'Open Windows PowerShell as Administrator and run the command again.' -ForegroundColor Yellow
+        return
+    }
 }
 
 $script:ToolRoot = Join-Path $env:ProgramData 'WenZoo\EdgeRemovalTool'
@@ -65,14 +83,19 @@ function Get-EdgeFileTargets {
     Add-UniquePath $paths (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge')
     Add-UniquePath $paths (Join-Path $env:ProgramFiles 'Microsoft\Edge')
     Add-UniquePath $paths (Join-Path $env:ProgramFiles 'Microsoft\EdgeCore')
-    if (${env:ProgramFiles(x86)}) { Add-UniquePath $paths (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\EdgeCore') }
+    Add-UniquePath $paths (Join-Path $env:ProgramFiles 'Microsoft\EdgeUpdate')
+    if (${env:ProgramFiles(x86)}) {
+        Add-UniquePath $paths (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\EdgeCore')
+        Add-UniquePath $paths (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\EdgeUpdate')
+    }
     foreach ($profile in (Get-UserProfiles)) {
         Add-UniquePath $paths (Join-Path $profile.LocalPath 'AppData\Local\Microsoft\Edge')
-        if (Test-Path -LiteralPath (Join-Path $profile.LocalPath 'AppData\Local\Microsoft\EdgeCore')) {
-            Add-UniquePath $paths (Join-Path $profile.LocalPath 'AppData\Local\Microsoft\EdgeCore')
+        foreach ($leaf in @('EdgeCore','EdgeUpdate')) {
+            $candidate = Join-Path $profile.LocalPath ('AppData\Local\Microsoft\' + $leaf)
+            if (Test-Path -LiteralPath $candidate) { Add-UniquePath $paths $candidate }
         }
     }
-    # Do not add Microsoft\EdgeWebView or Microsoft\EdgeUpdate directories here.
+    # EdgeUpdate is included for backup/removal. Microsoft\EdgeWebView is intentionally excluded.
     return @($paths | Where-Object { Test-Path -LiteralPath $_ })
 }
 
@@ -110,6 +133,9 @@ function Get-EdgeShortcutTargets {
 function Get-RegistryTargets {
     $results = New-Object 'System.Collections.Generic.List[string]'
     $known = @(
+        'HKLM\SOFTWARE\Microsoft\Edge',
+        'HKLM\SOFTWARE\WOW6432Node\Microsoft\Edge',
+        'HKCU\SOFTWARE\Microsoft\Edge',
         'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe',
         'HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe',
         'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe'
@@ -162,13 +188,16 @@ function Test-NativeRegistryKey {
 }
 
 function Get-RegistrySnapshotTargets {
-    # These keys are snapshotted for restoration only; they are NOT removed by cleanup.
+    # These keys are snapshotted for restoration, including shell pin state and updater service registrations.
     @(
         'HKLM\SOFTWARE\Microsoft\Edge',
         'HKLM\SOFTWARE\WOW6432Node\Microsoft\Edge',
         'HKCU\SOFTWARE\Microsoft\Edge',
         'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Taskband',
-        'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\CloudStore\Store\Cache\DefaultAccount'
+        'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\CloudStore\Store\Cache\DefaultAccount',
+        'HKLM\SYSTEM\CurrentControlSet\Services\edgeupdate',
+        'HKLM\SYSTEM\CurrentControlSet\Services\edgeupdatem',
+        'HKLM\SYSTEM\CurrentControlSet\Services\MicrosoftEdgeElevationService'
     )
 }
 
@@ -406,11 +435,11 @@ function Remove-Edge {
         catch { Write-Log "Could not remove shortcut '$p': $($_.Exception.Message)" 'WARN' }
     }
 
-    # Remove only Edge browser/profile directories. EdgeWebView and EdgeUpdate directories are intentionally excluded.
+    # Remove Edge browser/profile and EdgeUpdate directories. Preserve only the WebView2 runtime directory.
     foreach ($p in (Get-EdgeFileTargets)) {
         if (-not (Test-Path -LiteralPath $p)) { continue }
-        if ($p -match '(?i)\\Microsoft\\EdgeWebView(\\|$)|\\Microsoft\\EdgeUpdate(\\|$)') {
-            Write-Log "Protected shared/runtime directory: $p" 'WARN'; continue
+        if ($p -match '(?i)\\Microsoft\\EdgeWebView(\\|$)') {
+            Write-Log "Protected WebView2 runtime directory: $p" 'WARN'; continue
         }
         try { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop; Write-Log "Removed directory: $p" 'OK' }
         catch { Write-Log "Could not completely remove directory '$p': $($_.Exception.Message)" 'WARN' }
@@ -445,7 +474,7 @@ function Remove-Edge {
         '',
         'Notes:',
         '- WebView2 Runtime files and product registration are intentionally protected.',
-        '- Shared Edge Update files may remain. Disabling Edge Update can also stop automatic updates for WebView2 Runtime, although the runtime files are preserved.',
+        '- Edge Update program files are targeted for removal. This can disable automatic updates for WebView2 Runtime; the WebView2 runtime files and product registration are preserved.',
         '- Windows 11 Start/taskbar pin databases and OS-managed packages may not be fully controllable on every build.',
         '- A clean result does not guarantee Windows Update will never reinstall Edge.',
         '',
@@ -581,6 +610,7 @@ while ($true) {
             Write-Host ''
             Write-Host 'WARNING: This stops/disables Edge Update, removes Edge files and browser data, and may be irreversible if the backup is damaged.' -ForegroundColor Red
             Write-Host 'WebView2 Runtime directories and product registrations are excluded. Disabling Edge Update can also stop WebView2 updates.' -ForegroundColor Yellow
+            Write-Host 'Edge Update files will also be removed after backup. WebView2 Runtime itself is preserved, but its automatic update mechanism may stop working.' -ForegroundColor Yellow
             $confirm = Read-Host 'Type REMOVE to create a backup and proceed'
             if ($confirm -ceq 'REMOVE') {
                 try { Remove-Edge } catch { Write-Log "Removal aborted: $($_.Exception.Message)" 'ERROR'; Read-Host 'Press Enter to return to the menu' | Out-Null }
