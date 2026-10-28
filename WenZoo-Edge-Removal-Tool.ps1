@@ -1,7 +1,7 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
 WenZoo-Edge-Removal-Tool.ps1
-Version: 0.3.0 (IEX bootstrap compatibility revision)
+Version: 0.3.1 (UTF-8 BOM removed for IEX bootstrap)
 Removes the traditional desktop Microsoft Edge browser, while preserving the
 Microsoft Edge WebView2 Runtime installation directory and product registration.
 A pre-removal backup is mandatory before any changes. This script is best-effort:
