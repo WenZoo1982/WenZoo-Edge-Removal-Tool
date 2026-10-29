@@ -1,21 +1,21 @@
 ﻿#requires -Version 5.1
 <#
 WenZoo-Edge-Removal-Tool.ps1
-Version: 0.5.1-test16 (user-cancel rollback and verified temporary-backup cleanup)
+Version: 0.5.1
 Removes the traditional desktop Microsoft Edge browser, while preserving the
 Microsoft Edge WebView2 Runtime installation directory and product registration.
 A pre-removal backup is mandatory before any changes. This script is best-effort:
 Windows shell pins and OS-managed components vary by Windows 11 build.
 The interface supports Simplified Chinese and English. Diagnostic log files remain English.
 The tool runs in the current PowerShell host. Choosing Exit terminates that PowerShell process; run it only in a dedicated elevated PowerShell window with no other work to preserve.
-TEST BUILD WARNING: destructive removal is enabled in this file. Run only in an isolated, recoverable Windows test VM. Do not publish this exact file as a production release. Runtime exceptions are classified by impact; non-blocking failures are reported with severity and require explicit Y/N consent before the next cleanup stage. Backup integrity, ambiguous process identity, failed Edge Update quiescence, and inventory failures remain hard blockers. Restore is blocked unless the manifest records that removal actually started.
+RELEASE v0.5.1: destructive removal is enabled. Use only on a Windows system you control, after reviewing the source and understanding the risks. A verified backup is mandatory before removal. Runtime exceptions are classified by impact; non-blocking failures require explicit Y/N consent, while backup integrity, ambiguous process identity, failed Edge Update quiescence, and inventory failures remain hard blockers. Restore is blocked unless the manifest records that removal actually started.
 After a completed removal workflow, the user may immediately delete all backups without returning to the main menu.
 One removal confirmation starts the workflow. Removal begins automatically only after all mandatory backup checks pass. Failed preparation/validation removes this run's backup when the original startup settings were restored successfully. After a fully successful removal, the user may choose whether to delete backups.
 #>
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
-# TEST BUILD ONLY: destructive removal is enabled for isolated VM testing. Set to $false for a non-destructive staging build.
+# Release v0.5.1: destructive removal is enabled after mandatory backup validation.
 $script:EnableRemovalExecution = $true
 $script:RemovalFindings = New-Object 'System.Collections.Generic.List[object]'
 
@@ -2246,7 +2246,7 @@ function Get-UiText {
         Warning1 = @{ Zh='警告：确认后，工具会先临时关闭 Edge 启动增强、后台运行和自动启动，再自动关闭传统 Edge（未保存的页面/输入内容可能丢失），然后创建并校验备份。若准备或校验失败，工具会尝试恢复原设置并清理本次不完整备份。'; En='WARNING: After confirmation, the tool temporarily disables Edge Startup Boost, background mode, and auto-launch before closing traditional Edge (unsaved pages or input may be lost), then creates and validates a backup. If preparation or validation fails, it attempts to restore the original settings and remove the incomplete backup created during this run.' }
         Warning2 = @{ Zh='WebView2 运行时目录和产品登记会受到保护；禁用或移除 Edge Update 可能同时停止 WebView2 自动更新。'; En='WebView2 Runtime files and product registration are protected; disabling/removing Edge Update may also stop WebView2 automatic updates.' }
         EdgeRunning = @{ Zh='工具无法自动停止所有传统 Edge 进程，因此已中止；未创建备份或清理。请查看日志。'; En='The tool could not automatically stop all traditional Edge processes, so it aborted before backup/cleanup. Review the log.' }
-        Warning3 = @{ Zh='工具会先保存这些启动设置的原始状态，再禁用启动增强/后台模式和 Edge 自动启动项，随后自动关闭传统 Edge。WebView2 不会被主动结束。本测试构建已启用实际移除，仅用于可恢复的隔离虚拟机测试；备份验证通过后会直接执行移除，不会二次确认。执行中如遇到可恢复、非致命异常，工具会显示影响等级并询问是否继续；备份完整性、进程身份不明等安全阻断问题仍会直接中止。'; En='The tool snapshots startup settings first, then disables Startup Boost/background mode and the Edge auto-launch entry before closing traditional Edge. WebView2 is not targeted. Destructive removal is enabled in this test build; use only in an isolated, recoverable VM. Removal begins automatically after backup validation with no second confirmation. Non-fatal runtime exceptions are shown with impact levels and require explicit consent to continue; backup-integrity and unknown-process-identity failures remain hard blockers.' }
+        Warning3 = @{ Zh='工具会先保存启动设置的原始状态，再禁用启动增强/后台模式和 Edge 自动启动项，随后自动关闭传统 Edge。WebView2 不会被主动结束，但移除 Edge Update 可能影响 WebView2 自动更新。备份校验通过后会直接执行移除，不会二次确认。执行中如遇到可继续处理的异常，工具会显示影响等级并询问是否继续；备份完整性、进程身份不明等安全阻断问题仍会直接中止。请先阅读 README 中的风险说明。'; En='The tool snapshots startup settings first, then disables Startup Boost/background mode and the Edge auto-launch entry before closing traditional Edge. WebView2 itself is not targeted, but removing Edge Update may affect WebView2 automatic updates. Destructive removal starts automatically after mandatory backup validation, without a second confirmation. Continueable exceptions are shown with impact levels and require explicit Y/N consent; backup-integrity, ambiguous process identity, failed Edge Update quiescence, and inventory failures remain hard blockers. Read the README risk notice before proceeding.' }
         ConfirmInitialRemove = @{ Zh='输入 Y 继续，输入 N 或其他内容取消。备份验证全部通过后将直接开始移除，不再二次确认：'; En='Enter Y to proceed, or N/anything else to cancel. Removal starts automatically after mandatory backup validation; there is no second confirmation:' }
         BackupComplete = @{ Zh='备份已创建，文件路径、数量及大小检查通过。'; En='Backup created; file/path/size integrity checks passed.' }
         BackupLocation = @{ Zh='备份位置 / Backup location:'; En='Backup location / 备份位置:' }
@@ -2256,7 +2256,7 @@ function Get-UiText {
         RemovalBlockedStage = @{ Zh='安全锁已生效：当前测试版本不会执行删除。备份已保留供测试，系统未被清理。'; En='Safety gate active: this staged build will not execute deletion. The validated backup is retained for testing; the system was not cleaned.' }
         RemovalResidualsBackupKept = @{ Zh='移除流程发现残留或异常。为保留恢复能力，备份未自动删除；请查看日志和移除报告。'; En='Residuals or exceptions were found. The backup was retained for recovery; review the log and removal report.' }
         StageBanner = @{ Zh='测试阶段：仅验证备份；实际删除功能已锁定'; En='STAGING BUILD: Backup validation only; destructive removal is disabled' }
-        StageBannerEnabled = @{ Zh='测试构建：实际移除功能已启用，仅限隔离虚拟机测试'; En='TEST BUILD: destructive removal is enabled; isolated VM testing only' }
+        StageBannerEnabled = @{ Zh='正式版本 v0.5.1：实际移除功能已启用'; En='RELEASE v0.5.1: destructive removal is enabled' }
         PressEnter = @{ Zh='按 Enter 返回菜单'; En='Press Enter to return to the menu' }
         NoBackup = @{ Zh='未找到有效备份，无法恢复。'; En='No valid backup found. Nothing to restore.' }
         SelectedBackup = @{ Zh='选中的备份'; En='Backup selected' }
