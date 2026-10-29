@@ -1,8 +1,6 @@
 # WenZoo Edge Removal Tool
 
 **版本：v0.5.1**  
-项目仓库：[WenZoo1982/WenZoo-Edge-Removal-Tool](https://github.com/WenZoo1982/WenZoo-Edge-Removal-Tool)  
-在线入口：<https://removal.cc.cd>
 
 WenZoo Edge Removal Tool 是面向 Windows 的 PowerShell 工具，用于尽可能移除传统桌面版 Microsoft Edge，并提供移除前备份与恢复功能。本项目不是微软官方卸载程序，也不保证覆盖所有 Windows 版本、系统策略或未来更新带来的差异。
 
@@ -11,46 +9,29 @@ WenZoo Edge Removal Tool 是面向 Windows 的 PowerShell 工具，用于尽可�
 
 ## 项目制作初衷：Edge 的内存与磁盘占用
 
-制作本工具的初衷，是给希望减少传统桌面版 Microsoft Edge 组件、文件和相关后台更新机制的 Windows 用户，提供一个**可备份、可核验、尽可能可恢复**的移除方案。部分用户不使用 Edge 作为日常浏览器，但仍可能看到相关进程、更新服务、计划任务和磁盘文件；在磁盘空间有限或希望自行管理浏览器的设备上，这些因素值得了解。
+制作本工具的初衷，在尽可能不影响系统稳定性的前提下，移除 Microsoft Edge 减少不必要的资源占用。
 
-需要区分两类资源：
+## Microsoft Edge 内存与磁盘占用问题：公开报告汇总
 
-- **内存（RAM）：** Edge 打开网页时会使用内存；启用启动增强、后台运行或其他集成功能时，关闭浏览器窗口后也可能仍有相关进程。实际占用取决于网页、标签页数量、扩展、浏览器版本、性能设置和测量方法。
-- **磁盘空间：** 传统 Edge 的程序文件、EdgeCore、更新组件、缓存、用户配置文件和浏览数据可能占用磁盘空间。程序安装目录、用户数据目录和缓存是不同项目，实际体积会随版本、使用情况和更新而变化。公开评测中常见的 RAM 数据不能直接当作 Edge 的磁盘占用数据；本项目没有据此声称一个固定的磁盘节省数值。
+| 问题类别                  | 报告及日期                 | 具体现象                                                     | 来源与证据等级                                               |
+| ------------------------- | -------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 空闲时内存／CPU 占用      | 微软官方排查文档，持续维护 | 明确列出浏览器空闲时，msedge.exe 仍持续使用大量 CPU，以及少量标签页占用内存远超预期等症状。 | [官方技术文档 ](https://learn.microsoft.com/zh-cn/troubleshoot/microsoft-edge/performance/edge-high-cpu-memory?utm_source=chatgpt.com) |
+| 后台内存持续增长          | 微软中文问答，2023-03-06   | 用户报告 Edge 使用后占用约 3GB 内存，后台待机时继续增长，任务管理器显示超过 16GB；用户称另一台电脑也有类似现象。 | [具体用户实测报告](https://learn.microsoft.com/zh-cn/answers/questions/2376260/edge?utm_source=chatgpt.com) |
+| Edge 相关安装目录超过 2GB | 微软中文问答，2026-08-10   | 用户发现 C:\Program Files (x86)\Microsoft 中的 Edge 相关目录从约 2GB 增长到 6GB，并发现多个旧版本目录。 | [具体目录调查报告](https://learn.microsoft.com/zh-cn/answers/questions/5970894/edge?utm_source=chatgpt.com) |
+| 更新后旧版本文件残留      | 同上，微软社区答复         | 社区答复指出，旧版本文件可能用于更新失败后的回滚；更新次数多、更新异常或清理失败时可能残留。 | [社区技术解释，非微软正式产品缺陷认定](https://learn.microsoft.com/zh-cn/answers/questions/5970894/edge?utm_source=chatgpt.com) |
+| Edge 用户数据目录异常膨胀 | 微软中文问答，2024-10-19   | 用户报告 Edge 占用超过 20GB，进一步定位到 User Data\Default\File System 目录。 | [具体用户实测报告，但属于用户数据增长案例](https://learn.microsoft.com/zh-cn/answers/questions/3973923/edge-20-g?utm_source=chatgpt.com) |
 
-### 公开评测参考：内存占用并非固定排名
+## 权威性与适用范围
 
-以下是外部评测中的实例，作为制作背景说明，不是本项目在测试虚拟机上复现的结果：
+为了避免把用户反馈误写成微软已经确认的缺陷，需要对这些证据作进一步区分。
 
-| 来源与测试条件 | Edge 报告的内存占用 | 同一测试中的对照 |
-|---|---:|---|
-| [TechTarget：单标签页虚拟机测试](https://smartdataweek.com/article/comparing-ram-usage-across-common-web-browsers-techtarget) | 476.56 MB | Chrome 422.91 MB；Firefox 683.66 MB |
-| [Cinnamon Tutorials：2025 年 Windows 11 浏览器测试](https://www.youtube.com/watch?v=MoXt9T2_3kA) | 单网站 839.7 MB；四个网站同时打开 1,591.8 MB | Chrome 分别为 501.6 MB、1,102.2 MB |
-| [Notebookcheck：多浏览器测试（Chromium 134 等版本）](https://www.notebookcheck.net/Checking-how-much-RAM-popular-Web-browsers-use.975889.0.html) | 1,486 MB | Chrome 1,516 MB；Firefox 1,327 MB |
+| 证据类型                 | 能够证明什么                                                 | 不能证明什么                                                 |
+| ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 微软官方技术文档         | 微软承认 Edge 空闲时仍可能出现高 CPU、内存异常，并提供诊断方案。 | 不能证明所有空闲占用都属于缺陷。                             |
+| 微软中文问答中的用户报告 | 有用户遇到数 GB 乃至十几 GB 的资源占用，或 Edge 相关目录达到数 GB。 | 不能证明每台电脑都会出现，也不能代表微软正式确认了 Bug。     |
+| 社区答复中的旧版本解释   | 更新回滚机制可能解释部分旧版本文件为什么保留。               | 不能证明所有历史目录都应该保留，也不能证明所有残留都是清理故障。 |
 
-**如何理解这些数字：**
-
-- 不同评测的操作系统、浏览器版本、网页内容、标签页数量、扩展、后台进程和内存统计口径不同，数字不能横向直接比较。
-- 这些实例并不能证明 Edge 在所有情况下都比其他浏览器更占内存；有的测试中 Edge 高于 Chrome，有的测试中低于 Chrome。
-- 浏览器的内存占用是动态值，不是一个安装后固定不变的数字。单次测量不应作为所有用户设备的性能保证。
-- 本工具并非内存优化器，也不会保证卸载后释放固定数量的 RAM。移除浏览器程序及相关后台机制后，可能减少与这些组件相关的进程和磁盘文件，但实际效果取决于设备原本的运行状态和清理范围。
-
-### 使用前请先考虑替代办法
-
-如果主要问题是 Edge 占用内存，可以先关闭不需要的标签页、检查扩展、调整启动增强和后台运行设置，并通过任务管理器观察实际进程。如果主要问题是磁盘空间，应先检查“设置 → 系统 → 存储”以及 Edge 用户数据目录的实际大小。若这些方法已经解决问题，通常不必移除浏览器。
-
-本工具针对的是希望主动移除传统桌面版 Edge 的用户，而不是建议所有 Windows 用户都卸载 Edge。移除可能影响系统中依赖 Edge、相关协议或 WebView2 的应用；并且处理 Edge Update 组件可能影响 WebView2 的自动更新。请先阅读下文的风险说明并准备恢复手段。
-
-## 何时使用
-
-适合希望移除传统桌面版 Edge、使用其他浏览器，并愿意理解和承担系统组件变更风险的用户或技术人员。
-
-以下场景通常不需要本工具：
-- 只想把 Chrome、Firefox 等设为默认浏览器。
-- 依赖 Edge 专属协议、PWA、企业登录或其他 Edge 集成功能的软件/工作流。
-- 设备由公司、学校或其他组织管理，或组策略禁止相关变更。
-- 没有系统备份、虚拟机快照或其他可靠恢复方式。
-- 无法判断管理员 PowerShell 命令将执行什么操作。
+官方技术依据：[微软 Edge 高 CPU／内存占用排查文档](https://learn.microsoft.com/zh-cn/troubleshoot/microsoft-edge/performance/edge-high-cpu-memory?utm_source=chatgpt.com)。
 
 ## 运行要求
 
@@ -63,41 +44,19 @@ WenZoo Edge Removal Tool 是面向 Windows 的 PowerShell 工具，用于尽可�
 
 ### 实际测试环境
 
-以下信息来自测试虚拟机 `C:\Users\TEST` 中执行的 PowerShell 命令输出。系统信息按原始输出记录，不根据版本号推断或改写系统产品名称。
-
 | 项目 | 实际记录 |
 |---|---|
 | 虚拟化环境 | VMware 隔离虚拟机 |
-| Windows 产品名称（系统查询结果） | Windows 10 Pro |
+| Windows 产品名称（系统查询结果） | Windows 11 Pro |
 | Windows DisplayVersion | 26H2 |
 | Windows OS Build | 26300.9457（CurrentBuild 26300，UBR 9457） |
 | 系统架构 | 64 位 |
 | Microsoft Edge | 156.0.4314.50 |
 | Microsoft Edge Update | 1.3.307.15 |
-| PowerShell | Windows PowerShell；本次粘贴的输出未显示 `$PSVersionTable` 的版本值，故暂不填写具体版本号 |
-| 测试脚本 | WenZoo Edge Removal Tool v0.5.1（基于 test16 测试构建进行实际移除与恢复测试） |
+| PowerShell | 5.1.26100.9711 |
+| 测试脚本 | WenZoo Edge Removal Tool v0.5.1 |
 
-**系统版本记录说明：** `Get-ComputerInfo` 与注册表查询均将产品名称报告为 `Windows 10 Pro`，同时注册表返回 `DisplayVersion = 26H2`、`CurrentBuild = 26300`、`UBR = 9457`。README 按测试机的命令输出原样记录；在没有其他系统界面或映像信息佐证前，不把它改写为未经确认的 Windows 产品名称。
 
-### 已完成的测试
-
-- 在线获取脚本、版本识别与 PowerShell 语法检查。
-- 移除前备份文件和用户 Edge 数据，并验证文件内容的 SHA-256 校验结果。
-- 导出并保存目标注册表项、注册表快照和 Edge Update 计划任务 XML。
-- 执行 Edge 移除与目标残留检查。
-- 通过工具菜单执行恢复，并核验备份文件、注册表、服务和计划任务等恢复结果。
-- 检查操作日志，确认移除与恢复流程未报告检测到的错误。
-
-测试中，官方 Edge 卸载器曾返回退出码 `93`；工具将该码记录为信息日志并继续直接清理，随后独立核验预先定义的目标残留。该退出码本身不代表卸载成功。
-
-### 测试限制
-
-- 上述结果只代表该 VMware 虚拟机及表中记录的系统/组件版本，不代表已在所有 Windows 版本、硬件设备、账户类型、组策略或企业管理环境中验证。
-- `WindowsProductName` 的查询结果与 `DisplayVersion` / Build 信息同时记录，不能单凭其中一个字段推断其他设备的版本状态。
-- 虚拟机测试不能完全模拟实体电脑上的驱动、第三方软件、组织策略、系统更新和其他应用依赖。
-- 没有发现脚本定义范围内的目标残留，不等于系统中所有 Edge 相关组件都已消失，也不保证 Windows 或 Edge 安装程序以后不会重新安装相关组件。
-- 恢复测试验证了工具负责处理的主要文件、注册表、服务和计划任务等项目；它不等同于验证或恢复整个 Windows 系统映像。
-- 正式使用前，仍建议在自己的隔离虚拟机中先测试，并创建可回滚的快照。没有可靠恢复手段时，不建议在日常主力机或生产设备上运行。
 
 ## 使用方法
 
@@ -117,51 +76,25 @@ WenZoo Edge Removal Tool 是面向 Windows 的 PowerShell 工具，用于尽可�
 
 ### 方式 B：先下载、检查，再从本地运行
 
-注重可审查性的用户可以先下载脚本并检查版本与内容：
+注：国内网络稳定不稳定,在线启动可能失败，可使用此方式。
+
+1、下载WenZoo-Edge-Removal-Tool.ps1到桌面。
+
+2、如果用户下载了本地 .ps1 文件，且当前执行策略确实阻止运行，在已核实文件来源并信任内容的前提下，可仅对当前 PowerShell 进程临时设置：
 
 ```powershell
-$uri = 'https://removal.cc.cd'
-$out = Join-Path $env:USERPROFILE 'Desktop\WenZoo-Edge-Removal-Tool.ps1'
-Invoke-WebRequest -Uri $uri -UseBasicParsing -OutFile $out
-notepad.exe $out
+Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
-确认来源、版本和代码后，再在管理员 PowerShell 中运行：
+此设置仅作用于当前 PowerShell 进程，关闭窗口后即失效，不会永久改变其他会话的执行策略。但它会放宽当前窗口内的脚本执行限制，不得用于未知或未经审查的文件。若执行策略由组织组策略强制管理，不要尝试绕过组织规定。
+
+3、确认来源、版本和代码后，再在管理员 PowerShell 中运行：
 
 ```powershell
 & "$env:USERPROFILE\Desktop\WenZoo-Edge-Removal-Tool.ps1"
 ```
 
 不要为了运行未知来源的脚本而盲目放宽执行策略。
-
-### 菜单说明
-
-| 选项 | 功能 |
-|---|---|
-| `1` | 移除传统 Edge；备份通过验证后直接进入清理，不再二次确认 |
-| `2` | 从符合条件的备份恢复文件、注册表、服务、任务和启动设置 |
-| `3` | 删除界面列出的备份目录；不可撤销 |
-| `4` | 退出工具 |
-
-首次移除确认输入 `Y` 表示同意开始准备；输入 `N` 或其他内容表示取消。备份完整性、进程身份不明确、Edge Update 无法停止等硬性安全阻断会直接中止。其他可继续处理的异常会显示影响并要求用户选择是否继续。
-
-## 执行策略说明
-
-**使用在线启动命令时，通常不需要先执行：**
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-```
-
-因为 `irm https://removal.cc.cd | iex` 将内容交给 `Invoke-Expression` 执行，不是通过“运行本地 .ps1 文件”的方式启动。不要把上述命令列为普通用户的必需步骤。
-
-如果用户下载了本地 `.ps1` 文件，且当前执行策略确实阻止运行，在已核实文件来源并信任内容的前提下，可仅对当前 PowerShell 进程临时设置：
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-```
-
-此设置仅作用于当前 PowerShell 进程，关闭窗口后即失效，不会永久改变其他会话的执行策略。但它会放宽当前窗口内的脚本执行限制，**不得用于未知或未经审查的文件**。若执行策略由组织组策略强制管理，不要尝试绕过组织规定。
 
 ## 脚本工作原理
 
@@ -181,6 +114,8 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 工具明确排除 Microsoft Edge WebView2 Runtime 的安装目录和产品登记，也不会主动结束 `msedgewebview2.exe`。但是，工具会禁用或移除 Edge Update 服务、任务及相关目录，**可能影响 WebView2 Runtime 的自动更新**。保护 WebView2 文件和产品登记，不等于保证所有 WebView2 更新机制、应用集成或依赖功能绝对不受影响。
 
 ## 备份与恢复
+
+移除前会对移除项做备份处理，中途失败可菜单2恢复移除项，移除结束会提示是否清理备份（相关备份2G以上，推荐在确保系统稳定后再清除备份。），菜单3可随时清理移除操作带来的备份文件（一旦使用无法恢复，请确保系统稳定后清理）。
 
 默认备份目录：
 
@@ -220,15 +155,3 @@ C:\ProgramData\WenZoo\EdgeRemovalTool\Logs
 
 本工具不是微软产品，也未获微软官方认可或支持。Microsoft Edge、Microsoft Edge Update、WebView2 和 Windows 是其各自所有者的商标或产品名称。
 
-## 版本历史
-
-### v0.5.1
-
-- 完成传统 Edge 移除流程及独立残留核验。
-- 强制备份并执行 SHA-256 文件/目录内容验证。
-- 支持 Edge Update 服务、计划任务和启动机制的处理与恢复。
-- 保护 WebView2 Runtime 的目标安装目录和产品登记。
-- 将已观察到的官方卸载器退出码 `93` 记为信息日志，继续直接清理并独立核验。
-- 支持中英文交互和 `Y/N` 确认。
-
-请通过 [GitHub Releases](https://github.com/WenZoo1982/WenZoo-Edge-Removal-Tool/releases) 查看正式发布包与发布信息。
