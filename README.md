@@ -61,9 +61,25 @@ WenZoo Edge Removal Tool 是面向 Windows 的 PowerShell 工具，用于尽可�
 
 ## 测试环境与测试范围
 
-### 已完成的测试
+### 实际测试环境
 
-v0.5.1 发布前，项目在 **VMware 隔离的 Windows 11 虚拟机**中，使用 **Windows PowerShell 5.1** 进行实际测试。测试覆盖以下关键流程：
+以下信息来自测试虚拟机 `C:\Users\TEST` 中执行的 PowerShell 命令输出。系统信息按原始输出记录，不根据版本号推断或改写系统产品名称。
+
+| 项目 | 实际记录 |
+|---|---|
+| 虚拟化环境 | VMware 隔离虚拟机 |
+| Windows 产品名称（系统查询结果） | Windows 10 Pro |
+| Windows DisplayVersion | 26H2 |
+| Windows OS Build | 26300.9457（CurrentBuild 26300，UBR 9457） |
+| 系统架构 | 64 位 |
+| Microsoft Edge | 156.0.4314.50 |
+| Microsoft Edge Update | 1.3.307.15 |
+| PowerShell | Windows PowerShell；本次粘贴的输出未显示 `$PSVersionTable` 的版本值，故暂不填写具体版本号 |
+| 测试脚本 | WenZoo Edge Removal Tool v0.5.1（基于 test16 测试构建进行实际移除与恢复测试） |
+
+**系统版本记录说明：** `Get-ComputerInfo` 与注册表查询均将产品名称报告为 `Windows 10 Pro`，同时注册表返回 `DisplayVersion = 26H2`、`CurrentBuild = 26300`、`UBR = 9457`。README 按测试机的命令输出原样记录；在没有其他系统界面或映像信息佐证前，不把它改写为未经确认的 Windows 产品名称。
+
+### 已完成的测试
 
 - 在线获取脚本、版本识别与 PowerShell 语法检查。
 - 移除前备份文件和用户 Edge 数据，并验证文件内容的 SHA-256 校验结果。
@@ -76,7 +92,8 @@ v0.5.1 发布前，项目在 **VMware 隔离的 Windows 11 虚拟机**中，使�
 
 ### 测试限制
 
-- 上述测试结果只代表所述隔离虚拟机和当时的 Windows/Edge 状态，**不代表已在所有 Windows 版本、硬件设备、账户类型、组策略或企业管理环境中验证**。
+- 上述结果只代表该 VMware 虚拟机及表中记录的系统/组件版本，不代表已在所有 Windows 版本、硬件设备、账户类型、组策略或企业管理环境中验证。
+- `WindowsProductName` 的查询结果与 `DisplayVersion` / Build 信息同时记录，不能单凭其中一个字段推断其他设备的版本状态。
 - 虚拟机测试不能完全模拟实体电脑上的驱动、第三方软件、组织策略、系统更新和其他应用依赖。
 - 没有发现脚本定义范围内的目标残留，不等于系统中所有 Edge 相关组件都已消失，也不保证 Windows 或 Edge 安装程序以后不会重新安装相关组件。
 - 恢复测试验证了工具负责处理的主要文件、注册表、服务和计划任务等项目；它不等同于验证或恢复整个 Windows 系统映像。
